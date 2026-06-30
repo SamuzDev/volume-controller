@@ -139,18 +139,21 @@ def lerp_color(c1: str, c2: str, t: float) -> str:
 # ═══════════════════════════════════════════════════════════════════
 
 class GifWindow:
-    """Ventana emergente que reproduce un GIF animado."""
+    """Ventana emergente que reproduce un GIF animado con fade-out."""
 
     def __init__(self, parent: tk.Tk, gif_path: str):
         self.win = tk.Toplevel(parent)
         self.win.title("")
         self.win.configure(bg="#000000")
         self.win.resizable(False, False)
-        self.win.overrideredirect(True)  # Sin bordes de ventana
+        self.win.overrideredirect(True)
+        self.win.attributes("-alpha", 1.0)
 
         self.frames = []
         self.current_frame = 0
         self.playing = True
+        self._fading = False
+        self._alpha = 1.0
 
         self._load_gif(gif_path)
         if not self.frames:
@@ -171,13 +174,12 @@ class GifWindow:
         self.label = tk.Label(self.win, bg="#000000", bd=0)
         self.label.pack()
 
-        # Cerrar con click o Escape
         self.label.bind("<Button-1>", lambda e: self.close())
         self.win.bind("<Escape>", lambda e: self.close())
 
         self._animate()
-        # Auto-cerrar después de 4 segundos
-        self.win.after(4000, self.close)
+        # Empezar fade-out a los 2.5 segundos
+        self.win.after(2500, self._start_fade)
 
     def _load_gif(self, path: str):
         """Carga todos los frames del GIF."""
@@ -201,8 +203,23 @@ class GifWindow:
         self.label.config(image=photo)
         self.label._photo_ref = photo
         self.current_frame = (self.current_frame + 1) % len(self.frames)
-        delay = 50  # ~20fps
-        self.win.after(delay, self._animate)
+        self.win.after(50, self._animate)
+
+    def _start_fade(self):
+        """Inicia la animación de fade-out."""
+        self._fading = True
+        self._fade_step()
+
+    def _fade_step(self):
+        """Un paso de la animación de fade-out."""
+        if not self.playing:
+            return
+        self._alpha -= 0.05
+        if self._alpha <= 0:
+            self.close()
+            return
+        self.win.attributes("-alpha", self._alpha)
+        self.win.after(30, self._fade_step)  # ~33ms por paso, total ~600ms
 
     def close(self):
         self.playing = False
@@ -715,7 +732,7 @@ class VolumeApp:
             return
         self._gif_win = GifWindow(self.root, GIF_PATH)
         # Limpiar referencia cuando se cierra
-        self.root.after(5000, self._cleanup_gif)
+        self.root.after(4000, self._cleanup_gif)
 
     def _cleanup_gif(self):
         self._gif_win = None
