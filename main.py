@@ -141,21 +141,23 @@ def lerp_color(c1: str, c2: str, t: float) -> str:
 class GifWindow:
     """Ventana emergente que reproduce un GIF animado con fade-out."""
 
-    def __init__(self, parent: tk.Tk, gif_path: str):
+    def __init__(self, parent: tk.Tk, gif_path: str, on_close=None, preloaded_frames=None):
         self.win = tk.Toplevel(parent)
         self.win.title("")
         self.win.configure(bg="#000000")
         self.win.resizable(False, False)
         self.win.overrideredirect(True)
         self.win.attributes("-alpha", 1.0)
+        self._on_close_cb = on_close
 
-        self.frames = []
+        self.frames = preloaded_frames or []
         self.current_frame = 0
         self.playing = True
         self._fading = False
         self._alpha = 1.0
 
-        self._load_gif(gif_path)
+        if not self.frames:
+            self._load_gif(gif_path)
         if not self.frames:
             self.win.destroy()
             return
@@ -227,6 +229,8 @@ class GifWindow:
             self.win.destroy()
         except Exception:
             pass
+        if self._on_close_cb:
+            self._on_close_cb()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -265,9 +269,13 @@ class VolumeApp:
         # GIF window reference
         self._gif_win = None
 
+        # GIF frame cache
+        self._gif_frames_cache = None
+
         self._build_ui()
         self._center_window()
         self._start_animation_loop()
+        self._preload_gif()
 
     # ──────────────────────────────────────────────────────────────
     #  UI profesional
@@ -457,7 +465,21 @@ class VolumeApp:
         if not self.running:
             self.start_btn.config(bg=C["accent"])
 
+    def _preload_gif(self):
+        """Precarga los frames del GIF en memoria."""
+        try:
+            gif = Image.open(GIF_PATH)
+            frames = []
+            while True:
+                frame = gif.copy().convert("RGBA")
+                frames.append(frame)
+                gif.seek(gif.tell() + 1)
+            self._gif_frames_cache = frames
+        except Exception:
+            pass
+
     def _center_window(self):
+        """Centra la ventana en la pantalla."""
         self.root.update_idletasks()
         w = self.root.winfo_width()
         h = self.root.winfo_height()
@@ -729,12 +751,18 @@ class VolumeApp:
     def _show_gif(self):
         """Abre ventana con el GIF animado."""
         if self._gif_win is not None:
-            return
-        self._gif_win = GifWindow(self.root, GIF_PATH)
-        # Limpiar referencia cuando se cierra
-        self.root.after(4000, self._cleanup_gif)
+            try:
+                if self._gif_win.win.winfo_exists():
+                    return
+            except Exception:
+                pass
+        self._gif_win = GifWindow(
+            self.root, GIF_PATH,
+            on_close=self._on_gif_closed,
+            preloaded_frames=self._gif_frames_cache,
+        )
 
-    def _cleanup_gif(self):
+    def _on_gif_closed(self):
         self._gif_win = None
 
     # ──────────────────────────────────────────────────────────────
