@@ -342,30 +342,53 @@ def pil_button(text, w, h, bg_color, fg_color, radius=10, font_size=12):
 
 
 def pil_icon_camera(size, color):
-    """Play triangle icon."""
+    """Camera with play badge icon."""
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     c = hex_to_rgb(color)
-    # Triangle
-    margin = size // 5
-    points = [
-        (margin, margin),
-        (size - margin, size // 2),
-        (margin, size - margin),
+    lw = max(2, size // 12)
+    # Camera body
+    bx, by = size // 2 - size // 5, size // 3
+    bw, bh = size * 2 // 5, size // 2
+    draw.rounded_rectangle(
+        [(bx, by), (bx + bw, by + bh)],
+        radius=max(2, size // 14), fill=(*c, 255),
+    )
+    # Viewfinder bump
+    vx = bx + bw // 3
+    vw = bw // 3
+    draw.rounded_rectangle(
+        [(vx, by - bh // 4), (vx + vw, by)],
+        radius=max(1, size // 20), fill=(*c, 255),
+    )
+    # Play triangle inside
+    pm = size // 7
+    tri = [
+        (bx + pm, by + bh // 4),
+        (bx + bw - pm, by + bh // 2),
+        (bx + pm, by + bh * 3 // 4),
     ]
-    draw.polygon(points, fill=(*c, 255))
+    draw.polygon(tri, fill=(0, 0, 0, 200))
     return img
 
 
 def pil_icon_stop(size, color):
-    """Stop square icon."""
+    """Power/stop icon."""
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     c = hex_to_rgb(color)
-    margin = size // 4
-    draw.rounded_rectangle(
-        [(margin, margin), (size - margin, size - margin)],
-        radius=2, fill=(*c, 255),
+    cx, cy = size // 2, size // 2
+    r = size // 3
+    lw = max(2, size // 10)
+    # Arc (power symbol - incomplete circle)
+    draw.arc(
+        [cx - r, cy - r, cx + r, cy + r],
+        start=45, end=315, fill=(*c, 255), width=lw,
+    )
+    # Vertical line at top
+    draw.line(
+        [(cx, cy - r), (cx, cy - r // 4)],
+        fill=(*c, 255), width=lw,
     )
     return img
 
@@ -750,9 +773,18 @@ class VolumeApp:
         btn_w = 196
         btn_h = 44
         if state == "start":
-            img = pil_button("\u25b6  Iniciar Camara", btn_w, btn_h, C["accent"], "#ffffff", radius=10, font_size=12)
+            bg = C["accent"]
+            text = "Iniciar Camara"
+            icon = pil_icon_camera(16, "#ffffff")
         else:
-            img = pil_button("\u23f9  Detener", btn_w, btn_h, C["red"], "#ffffff", radius=10, font_size=12)
+            bg = C["red"]
+            text = "Detener"
+            icon = pil_icon_stop(16, "#ffffff")
+        img = pil_button(text, btn_w, btn_h, bg, "#ffffff", radius=10, font_size=12)
+        # Paste icon on left side
+        icon_x = 28
+        icon_y = (btn_h - icon.height) // 2
+        img.paste(icon, (icon_x, icon_y), icon)
         ref = ImageTk.PhotoImage(img)
         self.start_btn.config(image=ref)
         self.start_btn._img_ref = ref
@@ -760,7 +792,11 @@ class VolumeApp:
     def _btn_enter(self, e):
         if not self.running:
             btn_w, btn_h = 196, 44
-            img = pil_button("\u25b6  Iniciar Camara", btn_w, btn_h, C["accent2"], "#ffffff", radius=10, font_size=12)
+            img = pil_button("Iniciar Camara", btn_w, btn_h, C["accent2"], "#ffffff", radius=10, font_size=12)
+            icon = pil_icon_camera(16, "#ffffff")
+            icon_x = 28
+            icon_y = (btn_h - icon.height) // 2
+            img.paste(icon, (icon_x, icon_y), icon)
             ref = ImageTk.PhotoImage(img)
             self.start_btn.config(image=ref)
             self.start_btn._img_ref = ref
