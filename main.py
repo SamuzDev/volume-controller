@@ -178,8 +178,8 @@ class GifWindow:
         self.win.bind("<Escape>", lambda e: self.close())
 
         self._animate()
-        # Empezar fade-out a los 1.5 segundos
-        self.win.after(1500, self._start_fade)
+        # Empezar fade-out a los 0.3 segundos
+        self.win.after(300, self._start_fade)
 
     def _load_gif(self, path: str):
         """Carga todos los frames del GIF."""
