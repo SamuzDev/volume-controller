@@ -39,9 +39,9 @@ CAM_HEIGHT = 480
 CAMERA_INDEX = 0
 
 # Wave detection (agitar mano)
-WAVE_DIRECTION_THRESHOLD = 15   # píxeles mínimos para cambio de dirección
-WAVE_MIN_CHANGES = 2            # cambios de dirección mínimos
-WAVE_FRAMES_WINDOW = 12         # ventana de frames para detectar wave
+WAVE_DIRECTION_THRESHOLD = 25   # píxeles mínimos para cambio de dirección
+WAVE_MIN_CHANGES = 3            # cambios de dirección mínimos
+WAVE_FRAMES_WINDOW = 15         # ventana de frames para detectar wave
 WAVE_COOLDOWN = 5               # frames de espera post-wave (~160ms)
 
 # ═══════════════════════════════════════════════════════════════════
@@ -660,7 +660,7 @@ class VolumeApp:
                             for i in range(2, len(self.wrist_history)):
                                 d1 = self.wrist_history[i-1] - self.wrist_history[i-2]
                                 d2 = self.wrist_history[i] - self.wrist_history[i-1]
-                                if d1 * d2 < 0 and abs(d2) > WAVE_DIRECTION_THRESHOLD // 3:
+                                if d1 * d2 < 0 and abs(d2) > WAVE_DIRECTION_THRESHOLD:
                                     direction_changes += 1
                             if direction_changes >= WAVE_MIN_CHANGES:
                                 wave_detected = True
