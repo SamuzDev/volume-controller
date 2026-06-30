@@ -42,7 +42,7 @@ CAMERA_INDEX = 0
 WAVE_DIRECTION_THRESHOLD = 30   # píxeles mínimos para cambio de dirección
 WAVE_MIN_CHANGES = 3            # cambios de dirección mínimos
 WAVE_FRAMES_WINDOW = 30         # ventana de frames para detectar wave
-WAVE_COOLDOWN = 90              # frames de espera post-wave
+WAVE_COOLDOWN = 30              # frames de espera post-wave (~1 segundo)
 
 # ═══════════════════════════════════════════════════════════════════
 #  Paleta de colores
