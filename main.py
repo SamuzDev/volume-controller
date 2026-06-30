@@ -30,6 +30,91 @@ from mediapipe.tasks.python.vision import (
 )
 
 # =====================================================================
+#  Windows Core Audio — COM infrastructure (ctypes)
+# =====================================================================
+
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes, POINTER, byref, sizeof, c_void_p, c_long, c_ulong, c_ubyte, c_ushort, c_float, c_wchar_p
+
+    class _GUID(ctypes.Structure):
+        _fields_ = [
+            ("Data1", c_ulong),
+            ("Data2", c_ushort),
+            ("Data3", c_ushort),
+            ("Data4", c_ubyte * 8),
+        ]
+
+        @classmethod
+        def from_string(cls, s):
+            s = s.strip("{}")
+            parts = s.split("-")
+            d4 = bytes.fromhex(parts[3] + parts[4])
+            return cls(
+                int(parts[0], 16), int(parts[1], 16), int(parts[2], 16),
+                (c_ubyte * 8)(*d4),
+            )
+
+    class _IUnknownVtbl(ctypes.Structure):
+        _fields_ = [
+            ("QueryInterface", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(_GUID), POINTER(c_void_p))),
+            ("AddRef", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+            ("Release", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+        ]
+
+    class _IMMDeviceEnumeratorVtbl(ctypes.Structure):
+        _fields_ = [
+            ("QueryInterface", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(_GUID), POINTER(c_void_p))),
+            ("AddRef", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+            ("Release", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+            ("EnumAudioEndpoints", ctypes.CFUNCTYPE(c_long, c_void_p, c_ulong, c_ulong, POINTER(c_void_p))),
+            ("GetDefaultAudioEndpoint", ctypes.CFUNCTYPE(c_long, c_void_p, c_ulong, c_ulong, POINTER(c_void_p))),
+        ]
+
+    class _IMMDeviceVtbl(ctypes.Structure):
+        _fields_ = [
+            ("QueryInterface", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(_GUID), POINTER(c_void_p))),
+            ("AddRef", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+            ("Release", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+            ("Activate", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(_GUID), c_ulong, c_void_p, POINTER(c_void_p))),
+            ("OpenPropertyStore", ctypes.CFUNCTYPE(c_long, c_void_p, c_ulong, POINTER(c_void_p))),
+            ("GetId", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(c_wchar_p))),
+            ("GetState", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(c_ulong))),
+        ]
+
+    class _IAudioEndpointVolumeVtbl(ctypes.Structure):
+        _fields_ = [
+            ("QueryInterface", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(_GUID), POINTER(c_void_p))),
+            ("AddRef", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+            ("Release", ctypes.CFUNCTYPE(c_ulong, c_void_p)),
+            ("NotAllChannelsMute", ctypes.CFUNCTYPE(c_long, c_void_p, c_ulong)),
+            ("SetMasterVolumeLevelScalar", ctypes.CFUNCTYPE(c_long, c_void_p, c_float, POINTER(_GUID))),
+            ("GetMasterVolumeLevelScalar", ctypes.CFUNCTYPE(c_long, c_void_p, POINTER(c_float))),
+        ]
+
+    # GUIDs
+    _CLSID_MMDeviceEnumerator = _GUID.from_string("{BCDE0395-E52F-467C-8E3D-C4579291692E}")
+    _IID_IMMDeviceEnumerator = _GUID.from_string("{A95664D2-9614-4F35-A746-DE8DB63617E6}")
+    _IID_IAudioEndpointVolume = _GUID.from_string("{5CDF2C82-841E-4546-9722-0CF74078229A}")
+
+    # Windows API functions
+    _ole32 = ctypes.windll.ole32
+    _ole32.CoInitializeEx.restype = c_long
+    _ole32.CoInitializeEx.argtypes = [c_void_p, c_ulong]
+    _ole32.CoCreateInstance.restype = c_long
+    _ole32.CoCreateInstance.argtypes = [
+        POINTER(_GUID), c_void_p, c_ulong, POINTER(_GUID), POINTER(c_void_p),
+    ]
+
+    def _get_vtable(interface_ptr):
+        return ctypes.cast(interface_ptr, POINTER(POINTER(c_void_p))).contents[0]
+
+    def _release(interface_ptr):
+        vtable = _get_vtable(interface_ptr)
+        Release = ctypes.CFUNCTYPE(c_ulong, c_void_p)(vtable[2])
+        Release(interface_ptr)
+
+# =====================================================================
 #  Rutas y configuracion
 # =====================================================================
 
@@ -52,26 +137,26 @@ WAVE_COOLDOWN = 3
 # =====================================================================
 
 C = {
-    "bg":         "#050505",
-    "surface":    "#0a0a0a",
-    "card":       "#111111",
-    "card2":      "#161616",
-    "border":     "#222222",
-    "border2":    "#2a2a2a",
-    "accent":     "#7c5cfc",
-    "accent2":    "#9b7dff",
-    "accent_dim": "#4a3a8a",
-    "green":      "#00e676",
-    "green2":     "#69f0ae",
-    "red":        "#ff1744",
-    "orange":     "#ff9100",
-    "pink":       "#ff4081",
+    "bg":         "#0f0f1a",
+    "surface":    "#161625",
+    "card":       "#1e1e32",
+    "card2":      "#252540",
+    "border":     "#2a2a4a",
+    "border2":    "#353560",
+    "accent":     "#00d4ff",
+    "accent2":    "#7b61ff",
+    "accent_dim": "#1a3a5c",
+    "green":      "#00ff88",
+    "green2":     "#66ffbb",
+    "red":        "#ff3366",
+    "orange":     "#ff8c00",
+    "pink":       "#ff2d78",
     "cyan":       "#00e5ff",
-    "text":       "#e0e0e0",
-    "text2":      "#888888",
-    "text3":      "#444444",
-    "bar_bg":     "#1a1a1a",
-    "glow":       "#7c5cfc",
+    "text":       "#e8e8f0",
+    "text2":      "#8888aa",
+    "text3":      "#555577",
+    "bar_bg":     "#1a1a30",
+    "glow":       "#00d4ff",
 }
 
 
@@ -89,24 +174,40 @@ def _detect_audio_backend_linux() -> str | None:
 
 def _detect_audio_backend_windows() -> str | None:
     try:
-        import ctypes
-        from ctypes import wintypes
-        ole32 = ctypes.windll.ole32
-        ole32.CoInitializeEx(None, 0)
-        mmdeviceapi = ctypes.windll["mmdeviceapi.dll"]
-        CLSID_MMDeviceEnumerator = '{BCDE0395-E52F-467C-8E3D-C4579291692E}'
-        IID_IMMDeviceEnumerator = '{A95664D2-9614-4F35-A746-DE8DB63617E6}'
-        IID_IAudioEndpointVolume = '{5CDF2C82-841E-4546-9722-0CF74078229A}'
-        class IMMDeviceEnumerator(ctypes.Structure):
-            pass
-        pEnumerator = ctypes.POINTER(c_void_p)()
-        hr = mmdeviceapi.CCoCreateInstance(
-            ctypes.wintypes.GUID.from_string(CLSID_MMDeviceEnumerator),
-            None, 1, ctypes.wintypes.GUID.from_string(IID_IMMDeviceEnumerator),
-            ctypes.byref(pEnumerator),
+        _ole32.CoInitializeEx(None, 0)
+
+        ppEnumerator = c_void_p()
+        hr = _ole32.CoCreateInstance(
+            byref(_CLSID_MMDeviceEnumerator), None, 0x1,
+            byref(_IID_IMMDeviceEnumerator), byref(ppEnumerator),
         )
-        if hr == 0:
-            return "windows_core"
+        if hr != 0:
+            return None
+
+        vtable = _get_vtable(ppEnumerator)
+        GetDefaultAudioEndpoint = ctypes.CFUNCTYPE(
+            c_long, c_void_p, c_ulong, c_ulong, POINTER(c_void_p),
+        )(vtable[4])
+
+        ppDevice = c_void_p()
+        hr = GetDefaultAudioEndpoint(ppEnumerator, 0, 0, byref(ppDevice))
+        _release(ppEnumerator)
+        if hr != 0:
+            return None
+
+        vtable_dev = _get_vtable(ppDevice)
+        Activate = ctypes.CFUNCTYPE(
+            c_long, c_void_p, POINTER(_GUID), c_ulong, c_void_p, POINTER(c_void_p),
+        )(vtable_dev[3])
+
+        ppVolume = c_void_p()
+        hr = Activate(ppDevice, byref(_IID_IAudioEndpointVolume), 0x1, None, byref(ppVolume))
+        _release(ppDevice)
+        if hr != 0:
+            return None
+
+        _release(ppVolume)
+        return "windows_core"
     except Exception:
         pass
     return None
@@ -136,42 +237,56 @@ def set_volume(level: float) -> None:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
         elif AUDIO_BACKEND == "windows_core":
-            import ctypes
-            from ctypes import wintypes
-            ole32 = ctypes.windll.ole32
-            ole32.CoInitializeEx(None, 0)
-            mmdeviceapi = ctypes.windll["mmdeviceapi.dll"]
-            CLSID_MMDeviceEnumerator = '{BCDE0395-E52F-467C-8E3D-C4579291692E}'
-            IID_IMMDeviceEnumerator = '{A95664D2-9614-4F35-A746-DE8DB63617E6}'
-            IID_IAudioEndpointVolume = '{5CDF2C82-841E-4546-9722-0CF74078229A}'
-            pEnumerator = ctypes.POINTER(c_void_p)()
-            hr = mmdeviceapi.CCoCreateInstance(
-                ctypes.wintypes.GUID.from_string(CLSID_MMDeviceEnumerator),
-                None, 1, ctypes.wintypes.GUID.from_string(IID_IMMDeviceEnumerator),
-                ctypes.byref(pEnumerator),
+            _ole32.CoInitializeEx(None, 0)
+
+            ppEnumerator = c_void_p()
+            hr = _ole32.CoCreateInstance(
+                byref(_CLSID_MMDeviceEnumerator), None, 0x1,
+                byref(_IID_IMMDeviceEnumerator), byref(ppEnumerator),
             )
-            if hr == 0:
-                pDevice = ctypes.POINTER(c_void_p)()
-                hr = pEnumerator.GetDefaultAudioEndpoint(0, 1, ctypes.byref(pDevice))
-                if hr == 0:
-                    pVolume = ctypes.POINTER(c_void_p)()
-                    hr = pDevice.Activate(
-                        ctypes.wintypes.GUID.from_string(IID_IAudioEndpointVolume),
-                        1, None, ctypes.byref(pVolume),
-                    )
-                    if hr == 0:
-                        pVolume.SetMasterVolumeLevelScalar(float(level), None)
-                        pVolume.Release()
-                    pDevice.Release()
-                pEnumerator.Release()
+            if hr != 0:
+                return
+
+            vtable = _get_vtable(ppEnumerator)
+            GetDefaultAudioEndpoint = ctypes.CFUNCTYPE(
+                c_long, c_void_p, c_ulong, c_ulong, POINTER(c_void_p),
+            )(vtable[4])
+
+            ppDevice = c_void_p()
+            hr = GetDefaultAudioEndpoint(ppEnumerator, 0, 0, byref(ppDevice))
+            _release(ppEnumerator)
+            if hr != 0:
+                return
+
+            vtable_dev = _get_vtable(ppDevice)
+            Activate = ctypes.CFUNCTYPE(
+                c_long, c_void_p, POINTER(_GUID), c_ulong, c_void_p, POINTER(c_void_p),
+            )(vtable_dev[3])
+
+            ppVolume = c_void_p()
+            hr = Activate(ppDevice, byref(_IID_IAudioEndpointVolume), 0x1, None, byref(ppVolume))
+            _release(ppDevice)
+            if hr != 0:
+                return
+
+            vtable_vol = _get_vtable(ppVolume)
+            SetMasterVolumeLevelScalar = ctypes.CFUNCTYPE(
+                c_long, c_void_p, c_float, POINTER(_GUID),
+            )(vtable_vol[4])
+            SetMasterVolumeLevelScalar(ppVolume, float(level), None)
+            _release(ppVolume)
         elif AUDIO_BACKEND == "windows_powershell":
-            subprocess.run(
-                ["powershell", "-Command",
-                 f"$obj = New-Object -ComObject WScript.Shell; "
-                 f"1..50 | ForEach-Object {{ $obj.SendKeys([char]174) }}; "
-                 f"$obj.SendKeys([char]175)"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
+            # Last resort fallback using PowerShell volume key simulation
+            try:
+                subprocess.run(
+                    ["powershell", "-Command",
+                     "$obj = New-Object -ComObject WScript.Shell; "
+                     "$obj.SendKeys([char]173)"],  # Toggle mute to verify control
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=2,
+                )
+            except Exception:
+                pass
     except FileNotFoundError:
         pass
 
@@ -193,19 +308,49 @@ def get_volume() -> float:
             for line in r.stdout.splitlines():
                 if "Playback" in line and "%" in line:
                     return int(line[line.index("[") + 1:line.index("%")]) / 100.0
-        elif AUDIO_BACKEND in ("windows_core", "windows_powershell"):
-            r = subprocess.run(
-                ["powershell", "-Command",
-                 "$w = Get-WmiObject -Class Win32_SoundDevice; "
-                 "$v = Get-AudioDevice -PlaybackVolume 2>/dev/null; "
-                 "if ($v) { Write-Output $v } else { Write-Output '0.5' }"],
-                capture_output=True, text=True,
+        elif AUDIO_BACKEND == "windows_core":
+            _ole32.CoInitializeEx(None, 0)
+
+            ppEnumerator = c_void_p()
+            hr = _ole32.CoCreateInstance(
+                byref(_CLSID_MMDeviceEnumerator), None, 0x1,
+                byref(_IID_IMMDeviceEnumerator), byref(ppEnumerator),
             )
-            try:
-                val = float(r.stdout.strip())
-                return val if 0.0 <= val <= 1.0 else 0.5
-            except ValueError:
-                pass
+            if hr != 0:
+                return 0.5
+
+            vtable = _get_vtable(ppEnumerator)
+            GetDefaultAudioEndpoint = ctypes.CFUNCTYPE(
+                c_long, c_void_p, c_ulong, c_ulong, POINTER(c_void_p),
+            )(vtable[4])
+
+            ppDevice = c_void_p()
+            hr = GetDefaultAudioEndpoint(ppEnumerator, 0, 0, byref(ppDevice))
+            _release(ppEnumerator)
+            if hr != 0:
+                return 0.5
+
+            vtable_dev = _get_vtable(ppDevice)
+            Activate = ctypes.CFUNCTYPE(
+                c_long, c_void_p, POINTER(_GUID), c_ulong, c_void_p, POINTER(c_void_p),
+            )(vtable_dev[3])
+
+            ppVolume = c_void_p()
+            hr = Activate(ppDevice, byref(_IID_IAudioEndpointVolume), 0x1, None, byref(ppVolume))
+            _release(ppDevice)
+            if hr != 0:
+                return 0.5
+
+            vtable_vol = _get_vtable(ppVolume)
+            GetMasterVolumeLevelScalar = ctypes.CFUNCTYPE(
+                c_long, c_void_p, POINTER(c_float),
+            )(vtable_vol[5])
+            level = c_float()
+            GetMasterVolumeLevelScalar(ppVolume, byref(level))
+            _release(ppVolume)
+            return max(0.0, min(1.0, level.value))
+        elif AUDIO_BACKEND == "windows_powershell":
+            return 0.5
     except Exception:
         pass
     return 0.5
@@ -240,74 +385,125 @@ def pil_rounded_rect(size, radius, fill, outline=None, outline_width=0):
 
 
 def pil_volume_bar(vol, bar_w, bar_h, accent, accent2, green, orange, red, bg_color, bar_bg):
-    """Draw a smooth vertical volume bar with rounded ends and glow."""
-    r = bar_w // 2
-    img = Image.new("RGBA", (bar_w, bar_h), (0, 0, 0, 0))
+    """Draw a modern horizontal volume bar with gradient fill and percentage below."""
+    scale = 2
+    rw, rh = bar_w * scale, bar_h * scale
+    bar_thickness = 14 * scale
+    r_accent = hex_to_rgb(accent)
+    r_accent2 = hex_to_rgb(accent2)
+
+    img = Image.new("RGBA", (rw, rh), (0, 0, 0, 0))
+
+    # Bar position (upper portion of the widget)
+    bar_y = 10 * scale
+    bar_r = bar_thickness // 2
+    bar_left = bar_r
+    bar_right = rw - bar_r
+    bar_inner_w = bar_right - bar_left
+
     draw = ImageDraw.Draw(img)
 
-    # Background capsule
+    # Background bar track
     draw.rounded_rectangle(
-        [(0, 0), (bar_w - 1, bar_h - 1)],
-        radius=r, fill=bar_bg,
+        [(bar_left, bar_y), (bar_right, bar_y + bar_thickness)],
+        radius=bar_r, fill=(*hex_to_rgb(bar_bg), 255),
     )
 
-    # Fill
-    inner_h = bar_h - bar_w
-    fill_h = max(2, int(vol * inner_h))
-    y_top = bar_h - r - fill_h
-    y_bot = bar_h - r
+    # Fill width
+    fill_w = max(2, int(vol * bar_inner_w))
+    fill_right = bar_left + fill_w
 
-    if vol < 0.25:
-        color = hex_to_rgb(red)
-    elif vol < 0.5:
-        color = hex_to_rgb(orange)
-    elif vol < 0.75:
-        color = hex_to_rgb(accent)
-    else:
-        color = hex_to_rgb(accent2)
-
-    # Glow layer (wider, blurred)
-    glow = Image.new("RGBA", (bar_w, bar_h), (0, 0, 0, 0))
+    # Glow layer
+    glow = Image.new("RGBA", (rw, rh), (0, 0, 0, 0))
     glow_draw = ImageDraw.Draw(glow)
     glow_draw.rounded_rectangle(
-        [(-3, y_top - 3), (bar_w + 3, bar_h - 1 + 3)],
-        radius=r + 3, fill=(*color, 60),
+        [(bar_left - 4 * scale, bar_y - 4 * scale),
+         (fill_right + 4 * scale, bar_y + bar_thickness + 4 * scale)],
+        radius=bar_r + 4 * scale, fill=(*r_accent, 45),
     )
     img = Image.alpha_composite(img, glow)
 
-    # Main fill
-    fill_layer = Image.new("RGBA", (bar_w, bar_h), (0, 0, 0, 0))
+    # Gradient fill
+    fill_layer = Image.new("RGBA", (rw, rh), (0, 0, 0, 0))
     fill_draw = ImageDraw.Draw(fill_layer)
+    for x in range(bar_left, fill_right):
+        t = (x - bar_left) / max(1, bar_inner_w)
+        cr = int(r_accent[0] + (r_accent2[0] - r_accent[0]) * t)
+        cg = int(r_accent[1] + (r_accent2[1] - r_accent[1]) * t)
+        cb = int(r_accent[2] + (r_accent2[2] - r_accent[2]) * t)
+        fill_draw.line([(x, bar_y + 1), (x, bar_y + bar_thickness - 1)],
+                       fill=(cr, cg, cb, 255))
+    # Round the fill end
     fill_draw.rounded_rectangle(
-        [(2, y_top), (bar_w - 2, bar_h - 2)],
-        radius=r - 2, fill=(*color, 255),
+        [(bar_left, bar_y), (fill_right, bar_y + bar_thickness)],
+        radius=bar_r, fill=(*r_accent, 255),
     )
+    # Gradient overlay
+    for x in range(bar_left, fill_right):
+        t = (x - bar_left) / max(1, bar_inner_w)
+        cr = int(r_accent[0] + (r_accent2[0] - r_accent[0]) * t)
+        cg = int(r_accent[1] + (r_accent2[1] - r_accent[1]) * t)
+        cb = int(r_accent[2] + (r_accent2[2] - r_accent[2]) * t)
+        fill_draw.line([(x, bar_y + 2), (x, bar_y + bar_thickness - 2)],
+                       fill=(cr, cg, cb, 255))
     img = Image.alpha_composite(img, fill_layer)
 
-    # Inner highlight (top of fill for depth)
-    if fill_h > 10:
-        highlight = Image.new("RGBA", (bar_w, bar_h), (0, 0, 0, 0))
-        hl_draw = ImageDraw.Draw(highlight)
+    # Inner highlight
+    if fill_w > 20:
+        hl = Image.new("RGBA", (rw, rh), (0, 0, 0, 0))
+        hl_draw = ImageDraw.Draw(hl)
         hl_draw.rounded_rectangle(
-            [(4, y_top + 2), (bar_w - 4, y_top + min(6, fill_h // 3))],
-            radius=3, fill=(255, 255, 255, 30),
+            [(bar_left + 4, bar_y + 2),
+             (fill_right - 2, bar_y + bar_thickness // 2)],
+            radius=3, fill=(255, 255, 255, 25),
         )
-        img = Image.alpha_composite(img, highlight)
+        img = Image.alpha_composite(img, hl)
 
+    # Percentage text below the bar
+    pct = int(vol * 100)
+    if vol < 0.25:
+        tc = hex_to_rgb(red)
+    elif vol < 0.5:
+        tc = hex_to_rgb(orange)
+    elif vol < 0.75:
+        tc = hex_to_rgb(accent)
+    else:
+        tc = hex_to_rgb(accent2)
+
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/inter/Inter-Bold.ttf", 26 * scale)
+    except Exception:
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/TTF/Inter-Bold.ttf", 26 * scale)
+        except Exception:
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26 * scale)
+            except Exception:
+                font = ImageFont.load_default()
+
+    text = f"{pct}%"
+    final_draw = ImageDraw.Draw(img)
+    bbox = final_draw.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    tx = (rw - tw) // 2
+    ty = bar_y + bar_thickness + 10 * scale
+    final_draw.text((tx, ty), text, fill=(*tc, 255), font=font)
+
+    # Downscale for antialiasing
+    img = img.resize((bar_w, bar_h), Image.LANCZOS)
     return img
 
 
 def pil_button(text, w, h, bg_color, fg_color, radius=10, font_size=12):
-    """Draw a pill-shaped button with gradient effect."""
+    """Draw a modern gradient button with glow effect."""
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     r = hex_to_rgb(bg_color)
-    r2 = hex_to_rgb(bg_color)
 
-    # Subtle vertical gradient
+    # Gradient from bg_color to a lighter version
     for y in range(h):
         t = y / h
-        c = tuple(int(r[i] + (r2[i] - r[i]) * t * 0.3) for i in range(3))
+        c = tuple(min(255, int(r[i] + (255 - r[i]) * t * 0.15)) for i in range(3))
         draw.line([(0, y), (w - 1, y)], fill=(*c, 255))
 
     # Rounded rect mask
@@ -318,6 +514,15 @@ def pil_button(text, w, h, bg_color, fg_color, radius=10, font_size=12):
     # Apply mask
     result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     result.paste(img, mask=mask)
+
+    # Glow border
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    glow_draw.rounded_rectangle(
+        [(1, 1), (w - 2, h - 2)],
+        radius=radius - 1, outline=(*r, 80), width=2,
+    )
+    result = Image.alpha_composite(result, glow)
 
     # Text
     draw2 = ImageDraw.Draw(result)
@@ -468,6 +673,11 @@ class GifWindow:
         self.win.attributes("-alpha", 1.0)
         self._on_close_cb = on_close
 
+        # Ensure the window appears as a separate OS window on Windows
+        if sys.platform == "win32":
+            self.win.attributes("-topmost", True)
+            self.win.after(100, lambda: self.win.lift())
+
         self.frames = preloaded_frames or []
         self.current_frame = 0
         self.playing = True
@@ -489,6 +699,11 @@ class GifWindow:
         x = px + (pw - gw) // 2
         y = py + (ph - gh) // 2
         self.win.geometry(f"{gw}x{gh}+{x}+{y}")
+
+        # Force the window to appear on top
+        self.win.update_idletasks()
+        self.win.lift()
+        self.win.focus_force()
 
         self.label = tk.Label(self.win, bg="#000000", bd=0)
         self.label.pack()
@@ -632,10 +847,17 @@ class VolumeApp:
         cam_card = tk.Frame(left_panel, bg=C["card"], bd=0, highlightthickness=0)
         cam_card.pack(fill=tk.BOTH, expand=True)
 
-        # Linea accent superior
+        # Linea accent superior con gradiente
         self.accent_bar = tk.Canvas(cam_card, bg=C["card"], highlightthickness=0, height=3)
         self.accent_bar.pack(fill=tk.X)
-        self.accent_bar.create_rectangle(0, 0, 2000, 3, fill=C["accent"], outline="")
+        # Draw gradient accent bar (optimized: fewer lines)
+        for i in range(0, 800, 2):
+            t = i / 800
+            r = int(0 + (123 - 0) * t)
+            g = int(212 + (97 - 212) * t)
+            b = int(255 + (255 - 255) * t)
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            self.accent_bar.create_line(i, 0, i + 1, 3, fill=color)
 
         # Canvas de camara
         cam_inner = tk.Frame(cam_card, bg=C["surface"])
@@ -705,7 +927,7 @@ class VolumeApp:
         self.status_label.pack(side=tk.RIGHT)
 
         # ── Panel controles (derecha) ──
-        right = tk.Frame(outer, bg=C["bg"], width=220)
+        right = tk.Frame(outer, bg=C["bg"], width=240)
         right.pack(side=tk.RIGHT, fill=tk.Y, padx=(20, 0))
         right.pack_propagate(False)
 
@@ -713,20 +935,20 @@ class VolumeApp:
         header_frame = tk.Frame(right, bg=C["bg"])
         header_frame.pack(fill=tk.X, pady=(0, 16))
 
-        vol_icon = pil_icon_volume(14, C["text3"])
+        vol_icon = pil_icon_volume(16, C["accent"])
         self._vol_icon_ref = ImageTk.PhotoImage(vol_icon)
         tk.Label(
             header_frame, image=self._vol_icon_ref, bg=C["bg"], bd=0,
         ).pack(side=tk.LEFT)
 
         tk.Label(
-            header_frame, text="  VOLUME", bg=C["bg"], fg=C["text3"],
+            header_frame, text="  VOLUME", bg=C["bg"], fg=C["accent"],
             font=self.font_title, anchor="w",
         ).pack(side=tk.LEFT)
 
-        # ── Barra de volumen (PIL) ──
-        BAR_W = 52
-        BAR_H = 240
+        # ── Barra de volumen horizontal (PIL) ──
+        BAR_W = 200
+        BAR_H = 100
         self._bar_w = BAR_W
         self._bar_h = BAR_H
 
@@ -745,19 +967,9 @@ class VolumeApp:
         self._bar_img_ref = ImageTk.PhotoImage(bar_img)
         self.bar_label.config(image=self._bar_img_ref)
 
-        # ── Porcentaje ──
-        vol_frame = tk.Frame(right, bg=C["bg"])
-        vol_frame.pack(fill=tk.X, pady=(0, 4))
-
-        self.vol_label = tk.Label(
-            vol_frame, text=f"{int(self.current_volume * 100)}%",
-            bg=C["bg"], fg=C["accent"], font=self.font_lg, anchor="w",
-        )
-        self.vol_label.pack(side=tk.LEFT)
-
         # ── Boton (PIL) ──
         self.btn_frame = tk.Frame(right, bg=C["bg"])
-        self.btn_frame.pack(fill=tk.X, pady=(8, 0))
+        self.btn_frame.pack(fill=tk.X, pady=(12, 0))
 
         self.start_btn = tk.Label(self.btn_frame, bg=C["bg"], bd=0, highlightthickness=0)
         self.start_btn.pack(fill=tk.X)
@@ -872,17 +1084,6 @@ class VolumeApp:
         ref = ImageTk.PhotoImage(bar_img)
         self.bar_label.config(image=ref)
         self.bar_label._img_ref = ref
-
-        pct = int(vol * 100)
-        if vol < 0.25:
-            color = C["red"]
-        elif vol < 0.5:
-            color = C["orange"]
-        elif vol < 0.75:
-            color = C["accent"]
-        else:
-            color = C["accent2"]
-        self.vol_label.config(text=f"{pct}%", fg=color)
 
     # -----------------------------------------------------------------
     #  Camara y deteccion
