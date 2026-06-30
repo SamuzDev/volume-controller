@@ -38,10 +38,11 @@ CAM_WIDTH = 640
 CAM_HEIGHT = 480
 CAMERA_INDEX = 0
 
-# Wave detection (agitar mano)
+# Wave detection (agitar mano rápido)
 WAVE_DIRECTION_THRESHOLD = 25   # píxeles mínimos para cambio de dirección
 WAVE_MIN_CHANGES = 3            # cambios de dirección mínimos
 WAVE_FRAMES_WINDOW = 15         # ventana de frames para detectar wave
+WAVE_TIME_WINDOW = 0.5          # segundos máximos para completar el wave
 WAVE_COOLDOWN = 5               # frames de espera post-wave (~160ms)
 
 # ═══════════════════════════════════════════════════════════════════
@@ -644,28 +645,35 @@ class VolumeApp:
                         and is_curled(hand[20], hand[17])
                     )
 
-                    # ── Detección de wave (agitar mano) ──
+                    # ── Detección de wave (agitar mano rápido) ──
                     wave_detected = False
                     if self.wave_cooldown > 0:
                         self.wave_cooldown -= 1
                     else:
-                        # Guardar posición X en historial
-                        self.wrist_history.append(wx)
+                        # Guardar posición X + timestamp en historial
+                        now = time.time()
+                        self.wrist_history.append((wx, now))
                         if len(self.wrist_history) > WAVE_FRAMES_WINDOW:
                             self.wrist_history.pop(0)
 
-                        # Detectar cambios de dirección
+                        # Detectar cambios de dirección rápidos
                         if len(self.wrist_history) >= 3:
-                            direction_changes = 0
-                            for i in range(2, len(self.wrist_history)):
-                                d1 = self.wrist_history[i-1] - self.wrist_history[i-2]
-                                d2 = self.wrist_history[i] - self.wrist_history[i-1]
-                                if d1 * d2 < 0 and abs(d2) > WAVE_DIRECTION_THRESHOLD:
-                                    direction_changes += 1
-                            if direction_changes >= WAVE_MIN_CHANGES:
-                                wave_detected = True
-                                self.wave_cooldown = WAVE_COOLDOWN
-                                self.wrist_history.clear()
+                            # Filtrar solo los de la ventana de tiempo
+                            t_now = self.wrist_history[-1][1]
+                            recent = [(x, t) for x, t in self.wrist_history
+                                      if t_now - t <= WAVE_TIME_WINDOW]
+
+                            if len(recent) >= 3:
+                                direction_changes = 0
+                                for i in range(2, len(recent)):
+                                    d1 = recent[i-1][0] - recent[i-2][0]
+                                    d2 = recent[i][0] - recent[i-1][0]
+                                    if d1 * d2 < 0 and abs(d2) > WAVE_DIRECTION_THRESHOLD:
+                                        direction_changes += 1
+                                if direction_changes >= WAVE_MIN_CHANGES:
+                                    wave_detected = True
+                                    self.wave_cooldown = WAVE_COOLDOWN
+                                    self.wrist_history.clear()
 
                     if wave_detected and self._gif_win is None:
                         self.root.after(0, self._show_gif)
